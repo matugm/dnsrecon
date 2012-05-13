@@ -581,13 +581,13 @@ def whois_ips(res,ip_list):
         print_status('number, comma separated list, a for all or n for none')
         val = sys.stdin.readline()[:-1]
         answer = str(val).split(",")
-    
+
         if "a" in answer:
             for i in range(len(list)):
                 print_status("Performing Reverse Lookup of range {0}-{1}".format(list[i]['start'],list[i]['end']))
                 found_records.append(brute_reverse(res, \
                     expand_range(list[i]['start'],list[i]['end'])))
-    
+
         elif "n" in answer:
             print_status("No Reverse Lookups will be performed.")
             pass
@@ -777,7 +777,7 @@ def dns_sec_check(domain,res):
         print_error("to a higher number with --lifetime <time> option.")
         sys.exit(1)
     except dns.resolver.NoAnswer:
-        print_error("DNSSEC is not configured for".format(domain))
+        print_error("DNSSEC is not configured for {0}".format(domain))
 
 def general_enum(res, domain, do_axfr, do_google, do_spf, do_whois, zw):
     """
@@ -788,7 +788,7 @@ def general_enum(res, domain, do_axfr, do_google, do_spf, do_whois, zw):
     perform an A and AAA query against them.
     """
     returned_records = []
-    
+
     # Var for SPF Record Range Reverse Look-up
     found_spf_ranges = []
 
@@ -828,7 +828,7 @@ def general_enum(res, domain, do_axfr, do_google, do_spf, do_whois, zw):
                 ip_for_whois.append(found_soa_record[2])
 
         except:
-            print_error("Could not Resolve SOA Recor for {0}".format(domain))
+            print_error("Could not Resolve SOA Record for {0}".format(domain))
 
         # Enumerate Name Servers
         try:
@@ -905,7 +905,7 @@ def general_enum(res, domain, do_axfr, do_google, do_spf, do_whois, zw):
                 returned_records.extend([{'type':t[0], 'name':t[1],\
                 "text":t[2]
                 }])
-                
+
         # Process SPF records if selected
         if do_spf is not None and len(text_data) > 0:
             print_status("Expanding IP ranges found in DNS and TXT records for Reverse Look-up")
@@ -1047,7 +1047,7 @@ def lookup_next(target, res):
             else:
                 print_status('\t A {0} no_ip'.format(target))
                 returned_records.append({'type':'A','name':target,'address':"no_ip"})
-                
+
     return returned_records
 
 def get_a_answer(target,ns,timeout):
@@ -1075,7 +1075,7 @@ def ds_zone_walk(res, domain):
     res = DnsHelper(domain,soa_rcd,3)
     ns = soa_rcd
     response = get_a_answer(target,ns,timeout)
-    
+
     while next_host != domain:
         next_host = ""
         nsec_found = False
@@ -1115,9 +1115,9 @@ def ds_zone_walk(res, domain):
                         else:
                             print_error("Zone could not be walked")
                         return returned_records
-                    run = 0 
+                    run = 0
                 response = get_a_answer(next_target,ns,timeout)
-            returned_records.extend(lookup_next(next_host, res))    
+            returned_records.extend(lookup_next(next_host, res))
         except (KeyboardInterrupt):
             print_error("You have pressed Crtl-C. Saving found records.")
             break
@@ -1306,33 +1306,29 @@ def main():
     # Set the resolver
     res = DnsHelper(domain, ns_server, request_timeout)
 
+    domain_req = ['axfr','std','srv','tld','goo','zonewalk']
+
     if type is not None:
         for r in type.split(','):
+            if r in domain_req and domain is None:
+                print_error('No Domain to target specified!')
+                sys.exit(1)
             try:
                 if r == 'axfr':
-                    if domain is not None:
-                        print_status('Testing NS Servers for Zone Transfer')
-                        zonercds = res.zone_transfer()
-                        if zonercds:
-                            returned_records.extend(zonercds)
-                        else:
-                            print_error("No records where returned in the zone trasfer attempt.")
-
+                    print_status('Testing NS Servers for Zone Transfer')
+                    zonercds = res.zone_transfer()
+                    if zonercds:
+                        returned_records.extend(zonercds)
                     else:
-                        print_error('No Domain to target specified!')
-                        sys.exit(1)
+                        print_error("No records where returned in the zone trasfer attempt.")
 
                 elif r == 'std':
-                    if domain is not None:
-                        print_status("Performing General Enumeration of Domain:".format(domain))
-                        std_enum_records = general_enum(res, domain, xfr, goo,\
-                        spf_enum, do_whois, zonewalk)
+                    print_status("Performing General Enumeration of Domain:".format(domain))
+                    std_enum_records = general_enum(res, domain, xfr, goo,\
+                    spf_enum, do_whois, zonewalk)
 
-                        if (output_file is not None) or (results_db is not None) or (csv_file is not None):
-                            returned_records.extend(std_enum_records)
-                    else:
-                        print_error('No Domain to target specified!')
-                        sys.exit(1)
+                    if (output_file is not None) or (results_db is not None) or (csv_file is not None):
+                        returned_records.extend(std_enum_records)
 
                 elif r == 'rvl':
                     if len(ip_list) > 0:
@@ -1356,35 +1352,34 @@ def main():
                         sys.exit(1)
 
                 elif r == 'srv':
-                    if domain is not None:
-                        print_status('Enumerating Common SRV Records against {0}'.format(domain))
-                        srv_enum_records = brute_srv(res, domain, verbose)
+                    print_status('Enumerating Common SRV Records against {0}'.format(domain))
+                    srv_enum_records = brute_srv(res, domain, verbose)
 
-                        if (output_file is not None) or (results_db is not None) or (csv_file is not None):
-                            returned_records.extend(srv_enum_records)
-                    else:
-                        print('[-] No Domain to target specified!')
-                        sys.exit(1)
+                    if (output_file is not None) or (results_db is not None) or (csv_file is not None):
+                        returned_records.extend(srv_enum_records)
 
                 elif r == 'tld':
-                    if domain is not None:
-                        print_status("Performing TLD Brute force Enumeration against {0}".format(domain))
-                        tld_enum_records = brute_tlds(res, domain, verbose)
-                        if (output_file is not None) or (results_db is not None) or (csv_file is not None):
-                            returned_records.extend(tld_enum_records)
-                    else:
-                        print('[-] No Domain to target specified!')
-                        sys.exit(1)
+                    print_status("Performing TLD Brute force Enumeration against {0}".format(domain))
+                    tld_enum_records = brute_tlds(res, domain, verbose)
+                    if (output_file is not None) or (results_db is not None) or (csv_file is not None):
+                        returned_records.extend(tld_enum_records)
 
                 elif r == 'goo':
+<<<<<<< HEAD
+                    print_status("Performing Google Search Enumeration against{0}".format(domain))
+                    goo_enum_records = goo_result_process(res, scrape_google(domain))
+                    if (output_file is not None) or (results_db is not None) or (csv_file is not None):
+                        returned_records.extend(goo_enum_records)
+=======
                     if domain is not None:
-                        print_status("Performing Google Search Enumeration against{0}".format(domain))
+                        print_status("Performing Google Search Enumeration against {0}".format(domain))
                         goo_enum_records = goo_result_process(res, scrape_google(domain))
                         if (output_file is not None) or (results_db is not None) or (csv_file is not None):
                             returned_records.extend(goo_enum_records)
                     else:
                         print('[-] No Domain to target specified!')
                         sys.exit(1)
+>>>>>>> cb2ec87... Fix typos
 
                 elif r == "snoop":
                     if (dict is not None) and (ns_server is not None):
@@ -1398,14 +1393,10 @@ def main():
                         sys.exit(1)
 
                 elif r == "zonewalk":
-                    if domain is not None:
-                        if (output_file is not None) or (results_db is not None) or (csv_file is not None):
-                            returned_records.extend(ds_zone_walk(res, domain))
-                        else:
-                            ds_zone_walk(res, domain)
+                    if (output_file is not None) or (results_db is not None) or (csv_file is not None):
+                        returned_records.extend(ds_zone_walk(res, domain))
                     else:
-                        print_error('No Domain or Name Server to target specified!')
-                        sys.exit(1)
+                        ds_zone_walk(res, domain)
 
                 else:
                     print_error("This type of scan is not in the list {0}".format(r))
